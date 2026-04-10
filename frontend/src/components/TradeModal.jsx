@@ -66,9 +66,10 @@ function ExitForm({ trade, exit, onClose }) {
     : trade.qty - trade.exits.reduce((s, e) => s + e.qty, 0)
 
   const [form, setForm] = useState({
-    time:  isEdit ? exit.time         : nowTime(),
-    qty:   isEdit ? String(exit.qty)  : '',
-    price: isEdit ? String(exit.price): '',
+    date:  isEdit ? (exit.date ?? nowDate()) : nowDate(),
+    time:  isEdit ? exit.time                : nowTime(),
+    qty:   isEdit ? String(exit.qty)         : '',
+    price: isEdit ? String(exit.price)       : '',
     notes: '',
   })
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
@@ -80,9 +81,9 @@ function ExitForm({ trade, exit, onClose }) {
   const mutation = useMutation({
     mutationFn: async () => {
       if (isEdit) {
-        return updateExit(exit.id, { time: formatTime(form.time), qty: parseInt(form.qty), price: parseFloat(form.price) })
+        return updateExit(exit.id, { date: form.date, time: formatTime(form.time), qty: parseInt(form.qty), price: parseFloat(form.price) })
       }
-      await addExit({ trade_id: trade.id, time: formatTime(form.time), qty: parseInt(form.qty), price: parseFloat(form.price) })
+      await addExit({ trade_id: trade.id, date: form.date, time: formatTime(form.time), qty: parseInt(form.qty), price: parseFloat(form.price) })
       if (form.notes.trim()) {
         const exitIndex = trade.exits.length + 1
         const section = `Exit ${exitIndex}:\n${form.notes.trim()}`
@@ -104,10 +105,16 @@ function ExitForm({ trade, exit, onClose }) {
         {' · '}Available: <span className="font-mono text-amber-400 font-semibold">{remaining}</span>
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Exit Date">
+          <input className={INPUT} type="date" value={form.date} onChange={set('date')} />
+        </Field>
         <Field label="Time ET (HH:MM)">
           <input className={INPUT} value={form.time} onChange={e => setForm(f => ({ ...f, time: formatTime(e.target.value) }))} />
         </Field>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
         <Field label={`Qty (max ${remaining})`}>
           <input className={INPUT} type="number" min="1" max={remaining} value={form.qty} onChange={set('qty')} />
         </Field>
@@ -141,7 +148,7 @@ function ExitForm({ trade, exit, onClose }) {
 
       <button
         onClick={() => mutation.mutate()}
-        disabled={!form.time || !form.qty || !form.price || mutation.isPending}
+        disabled={!form.date || !form.time || !form.qty || !form.price || mutation.isPending}
         className="w-full bg-primary text-primary-foreground py-2.5 text-sm font-bold disabled:opacity-40 hover:opacity-90 transition-opacity"
       >
         {mutation.isPending ? 'Saving…' : isEdit ? 'Save Exit' : 'Add Exit'}

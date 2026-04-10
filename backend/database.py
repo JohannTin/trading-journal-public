@@ -227,6 +227,7 @@ def _run_init():
         ("created_at", "TEXT NOT NULL DEFAULT (datetime('now'))"),
         ("notes",      "TEXT"),
         ("deleted_at", "TEXT"),
+        ("date",       "TEXT"),
     ]:
         if col not in exit_cols:
             try:

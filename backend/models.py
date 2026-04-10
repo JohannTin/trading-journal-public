@@ -44,6 +44,7 @@ class AccountOut(BaseModel):
 
 class ExitCreate(BaseModel):
     trade_id: int
+    date: Optional[str] = None  # exit date; None means same day as trade entry
     time: str
     qty: int = Field(gt=0)
     price: float = Field(gt=0)
@@ -52,6 +53,7 @@ class ExitCreate(BaseModel):
 class ExitOut(BaseModel):
     id: int
     trade_id: int
+    date: Optional[str] = None  # exit date; None means same day as trade entry
     time: str
     qty: int
     price: float

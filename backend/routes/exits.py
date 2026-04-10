@@ -33,16 +33,17 @@ def _auto_close(conn, trade_id: int):
         conn.execute("UPDATE trades SET status = 'open' WHERE id = ?", (trade_id,))
 
 
-def _store_exit_stats(conn, exit_id: int, exit_time: str, trade_d: dict):
+def _store_exit_stats(conn, exit_id: int, exit_time: str, trade_d: dict, exit_date: str | None = None):
     """Compute and persist exit MACD + MAE/MFE for a single exit."""
-    date_str   = trade_d["date"]
+    entry_date = trade_d["date"]
+    x_date     = exit_date or entry_date
     underlying = trade_d["ticker"].upper()
     opt_tk     = option_ticker(trade_d)
     fill       = trade_d["fill"]
-    start_ts, end_ts = day_bounds(date_str)
-    e_ts       = entry_ts(date_str, trade_d["time"])
-    x_ts       = entry_ts(date_str, exit_time)
-    sess_end   = entry_ts(date_str, DEFAULT_SESSION_END)
+    start_ts, end_ts = day_bounds(x_date)
+    e_ts       = entry_ts(entry_date, trade_d["time"])
+    x_ts       = entry_ts(x_date, exit_time)
+    sess_end   = entry_ts(x_date, DEFAULT_SESSION_END)
 
     macd = nearest_macd(conn, underlying, x_ts, start_ts, end_ts)
     mae, mfe, post = compute_mae_mfe(conn, opt_tk, underlying, e_ts, x_ts, fill, sess_end, trade_d["option_type"])
@@ -84,15 +85,16 @@ def add_exit(payload: ExitCreate):
         pnl = (payload.price - trade_d["fill"]) * payload.qty * 100
         pct = ((payload.price - trade_d["fill"]) / trade_d["fill"]) * 100
 
+        exit_date = payload.date or None
         cur = conn.execute(
-            "INSERT INTO exits (trade_id, time, qty, price, pnl, pct) VALUES (?,?,?,?,?,?)",
-            (payload.trade_id, payload.time, payload.qty, payload.price,
+            "INSERT INTO exits (trade_id, date, time, qty, price, pnl, pct) VALUES (?,?,?,?,?,?,?)",
+            (payload.trade_id, exit_date, payload.time, payload.qty, payload.price,
              round(pnl, 2), round(pct, 2)),
         )
         exit_id = cur.lastrowid
         conn.commit()
 
-        _store_exit_stats(conn, exit_id, payload.time, trade_d)
+        _store_exit_stats(conn, exit_id, payload.time, trade_d, exit_date)
         _update_trade_pnl(conn, payload.trade_id)
         _auto_close(conn, payload.trade_id)
         conn.commit()
@@ -123,6 +125,7 @@ def update_exit(exit_id: int, payload: dict[str, Any]):
         new_qty   = int(payload.get("qty",   exit_row["qty"]))
         new_price = float(payload.get("price", exit_row["price"]))
         new_time  = payload.get("time", exit_row["time"])
+        new_date  = payload.get("date", exit_row["date"]) or None
 
         other_exited = conn.execute(
             "SELECT COALESCE(SUM(qty), 0) as total FROM exits WHERE trade_id = ? AND id != ? AND deleted_at IS NULL",
@@ -140,12 +143,12 @@ def update_exit(exit_id: int, payload: dict[str, Any]):
         pct = ((new_price - trade_d["fill"]) / trade_d["fill"]) * 100
 
         conn.execute(
-            "UPDATE exits SET time = ?, qty = ?, price = ?, pnl = ?, pct = ? WHERE id = ?",
-            (new_time, new_qty, new_price, round(pnl, 2), round(pct, 2), exit_id),
+            "UPDATE exits SET date = ?, time = ?, qty = ?, price = ?, pnl = ?, pct = ? WHERE id = ?",
+            (new_date, new_time, new_qty, new_price, round(pnl, 2), round(pct, 2), exit_id),
         )
         conn.commit()
 
-        _store_exit_stats(conn, exit_id, new_time, trade_d)
+        _store_exit_stats(conn, exit_id, new_time, trade_d, new_date)
         _update_trade_pnl(conn, exit_row["trade_id"])
         _auto_close(conn, exit_row["trade_id"])
         conn.commit()

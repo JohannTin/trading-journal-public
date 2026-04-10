@@ -45,6 +45,7 @@ def _exit_row_to_out(r) -> ExitOut:
     return ExitOut(
         id=d["id"],
         trade_id=d["trade_id"],
+        date=d.get("date"),
         time=d["time"],
         qty=d["qty"],
         price=d["price"],
