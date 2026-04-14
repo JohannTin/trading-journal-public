@@ -94,7 +94,7 @@ export default function Calendar({ data = [], highFreqDays = [], offset = 0, set
   const todayYM = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`
 
   return (
-    <div className="border border-border bg-card flex flex-col">
+    <div className="border border-border bg-card flex flex-col min-w-[520px]">
       {/* Header */}
       <div className="flex items-center justify-between px-5 py-3 border-b border-border shrink-0">
         <button

@@ -108,7 +108,7 @@ function App() {
   return (
     <AccountProvider>
     <BrowserRouter>
-      <div className="flex h-screen overflow-hidden bg-background">
+      <div className="flex h-screen overflow-hidden bg-background min-w-[900px]">
         {/* Sidebar */}
         <aside className="w-52 shrink-0 border-r border-border flex flex-col bg-card">
           {/* Logo */}
