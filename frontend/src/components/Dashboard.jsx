@@ -242,7 +242,7 @@ export default function Dashboard() {
                       <span className="font-mono text-xs text-muted-foreground">${t.strike}</span>
                       <span className="text-xs text-muted-foreground">exp {t.expiry}</span>
                     </div>
-                    <span className="font-mono text-xs text-muted-foreground shrink-0">{t.qty}× @${t.fill}</span>
+                    <span className="font-mono text-xs text-muted-foreground shrink-0">{t.qty}× @${Number(t.fill).toFixed(2)}</span>
                   </div>
                 ))}
               </div>

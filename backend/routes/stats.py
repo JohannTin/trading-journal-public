@@ -14,31 +14,51 @@ def calendar_stats(account_id: Optional[int] = Query(None)):
     try:
         acct_filter = "AND t.account_id = ?" if account_id is not None else ""
         acct_param  = (account_id,) if account_id is not None else ()
-        # Per-trade P&L for closed trades, grouped by date
+        # P&L grouped by exit date (COALESCE(e.date, t.date) so same-day exits fall on entry date)
         rows = conn.execute(f"""
             SELECT
-                t.date,
+                COALESCE(e.date, t.date)                           AS date,
                 COALESCE(SUM(e.pnl), 0)                           AS total_pnl,
-                COUNT(DISTINCT t.id)                               AS trade_count,
                 COUNT(DISTINCT CASE
-                    WHEN t.status = 'closed' AND sub.trade_pnl > 0 THEN t.id
+                    WHEN t.status = 'closed'
+                     AND last_exit.last_exit_date = COALESCE(e.date, t.date) THEN t.id
+                END)                                               AS trade_count,
+                COUNT(DISTINCT CASE
+                    WHEN t.status = 'closed'
+                     AND last_exit.last_exit_date = COALESCE(e.date, t.date)
+                     AND sub.trade_pnl > 0 THEN t.id
                 END)                                               AS win_count,
                 COUNT(DISTINCT CASE
-                    WHEN t.status = 'closed' AND sub.trade_pnl <= 0 THEN t.id
+                    WHEN t.status = 'closed'
+                     AND last_exit.last_exit_date = COALESCE(e.date, t.date)
+                     AND sub.trade_pnl <= 0 THEN t.id
                 END)                                               AS loss_count,
-                AVG(CASE WHEN t.status = 'closed' AND sub.trade_pnl > 0
-                    THEN sub.trade_pnl END)                        AS avg_win_pnl,
-                AVG(CASE WHEN t.status = 'closed' AND sub.trade_pnl <= 0
-                    THEN sub.trade_pnl END)                        AS avg_loss_pnl
+                AVG(CASE
+                    WHEN t.status = 'closed'
+                     AND last_exit.last_exit_date = COALESCE(e.date, t.date)
+                     AND sub.trade_pnl > 0 THEN sub.trade_pnl
+                END)                                               AS avg_win_pnl,
+                AVG(CASE
+                    WHEN t.status = 'closed'
+                     AND last_exit.last_exit_date = COALESCE(e.date, t.date)
+                     AND sub.trade_pnl <= 0 THEN sub.trade_pnl
+                END)                                               AS avg_loss_pnl
             FROM trades t
-            LEFT JOIN exits e ON e.trade_id = t.id AND e.deleted_at IS NULL
+            JOIN exits e ON e.trade_id = t.id AND e.deleted_at IS NULL
             LEFT JOIN (
                 SELECT trade_id, SUM(pnl) AS trade_pnl
                 FROM exits WHERE deleted_at IS NULL GROUP BY trade_id
             ) sub ON sub.trade_id = t.id
+            LEFT JOIN (
+                SELECT e2.trade_id, MAX(COALESCE(e2.date, t2.date)) AS last_exit_date
+                FROM exits e2
+                JOIN trades t2 ON t2.id = e2.trade_id
+                WHERE e2.deleted_at IS NULL
+                GROUP BY e2.trade_id
+            ) last_exit ON last_exit.trade_id = t.id
             WHERE t.deleted_at IS NULL {acct_filter}
-            GROUP BY t.date
-            ORDER BY t.date DESC
+            GROUP BY COALESCE(e.date, t.date)
+            ORDER BY COALESCE(e.date, t.date) DESC
         """, acct_param).fetchall()
 
         result = []
